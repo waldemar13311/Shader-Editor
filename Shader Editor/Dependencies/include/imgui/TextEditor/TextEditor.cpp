@@ -248,33 +248,28 @@ TextEditor::Coordinates TextEditor::ScreenPosToCoordinates(const ImVec2& aPositi
 
 	int lineNo = std::max(0, (int)floor(local.y / mCharAdvance.y));
 
-	/*
-		Compute columnCoord according to text size
-	*/
-
-	int 		columnCoord 			= 0;
-	float       columnWidth             = 0.0f;
-	std::string cumulatedString			= "";
-	float 		cumulatedStringWidth[2] = {0.0f, 0.0f}; //( [0] is the lastest, [1] is the previous. I use that trick to check where cursor is exactly (important for tabs)
+	int columnCoord = 0;
 
 	if (lineNo >= 0 && lineNo < (int)mLines.size())
 	{
-		auto&       line                    = mLines.at(lineNo);
-		
-		// First we find the hovered column coord.
-		while ( mTextStart + cumulatedStringWidth[0] < local.x &&
-			    columnCoord < line.size())
-		{		
-			cumulatedStringWidth[1] = cumulatedStringWidth[0]; 
-			cumulatedString += line[columnCoord].mChar;
-			cumulatedStringWidth[0] = ImGui::CalcTextSize(cumulatedString.c_str()).x ;
-			columnWidth = (cumulatedStringWidth[0] - cumulatedStringWidth[1]);
-			columnCoord++;
+		auto& line = mLines.at(lineNo);
+
+		// Позиция символа считается той же функцией, что и при отрисовке курсора
+		// и выделения (TextDistanceToLineStart) - иначе клик и курсор расходятся
+		while (columnCoord < (int)line.size() &&
+			mTextStart + TextDistanceToLineStart(Coordinates(lineNo, columnCoord + 1)) <= local.x)
+		{
+			++columnCoord;
 		}
 
-		// Then we reduce by 1 column coord if cursor is on the left side of the hovered column.
-		if( mTextStart + cumulatedStringWidth[0] - columnWidth / 2.0f > local.x)
-			columnCoord = std::max(0, --columnCoord);
+		// на левую половину предыдущего символа - сдвигаем курсор на него
+		if (columnCoord > 0)
+		{
+			const float rightX = mTextStart + TextDistanceToLineStart(Coordinates(lineNo, columnCoord));
+			const float leftX  = mTextStart + TextDistanceToLineStart(Coordinates(lineNo, columnCoord - 1));
+			if (local.x < (leftX + rightX) * 0.5f)
+				--columnCoord;
+		}
 	}
 
 	return SanitizeCoordinates(Coordinates(lineNo, columnCoord));
@@ -454,7 +449,7 @@ void TextEditor::Render(const char* aTitle, const ImVec2& aSize, bool aBorder)
 	ImGui::PushAllowKeyboardFocus(true);
 	ImGuiIO& io = ImGui::GetIO();
 	auto shift = io.KeyShift;
-	auto ctrl =  io.KeyCtrl;
+	auto ctrl = io.KeyCtrl || io.KeySuper;	// на macOS Cmd работает как Ctrl
 	auto alt = io.KeyAlt;
 
 	if (ImGui::IsWindowFocused())
@@ -514,6 +509,8 @@ void TextEditor::Render(const char* aTitle, const ImVec2& aSize, bool aBorder)
 			Cut();
 		else if (ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A)))
 			SelectAll();
+		else if (!IsReadOnly() && ctrl && !alt && ImGui::IsKeyPressed('/'))
+			ToggleComment();
 		else if (!IsReadOnly() && !ctrl && !shift && !alt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter)) )
 			EnterCharacter('\n');
 		else if (!IsReadOnly() && !ctrl && !alt)
@@ -629,7 +626,7 @@ void TextEditor::Render(const char* aTitle, const ImVec2& aSize, bool aBorder)
 	if (!mLines.empty())
 	{
 		auto fontScale = ImGui::GetFontSize() / ImGui::GetFont()->FontSize;
-		float spaceSize = ImGui::CalcTextSize(" ").x + 1.0f * fontScale;
+		float spaceSize = ImGui::CalcTextSize(" ").x;
 
 		while (lineNo <= lineMax)
 		{
@@ -759,13 +756,13 @@ void TextEditor::Render(const char* aTitle, const ImVec2& aSize, bool aBorder)
 					const ImVec2 newOffset(textScreenPos.x + bufferOffset.x, textScreenPos.y + bufferOffset.y);
 					drawList->AddText(newOffset, mPalette[(uint8_t)prevColor], buffer.c_str());
 					auto textSize = ImGui::CalcTextSize(buffer.c_str());
-					bufferOffset.x += textSize.x + 1.0f * fontScale;
+					bufferOffset.x += textSize.x;
 					buffer.clear();
 				}
 				prevColor = color;
 
 				if (glyph.mChar == '\t')
-					bufferOffset.x = (1.0f * fontScale + std::floor((1.0f + bufferOffset.x)) / (float(mTabSize) * spaceSize)) * (float(mTabSize) * spaceSize);
+					bufferOffset.x = (std::floor(bufferOffset.x / (float(mTabSize) * spaceSize)) + 1.0f) * (float(mTabSize) * spaceSize);
 				else
 					AppendBuffer(buffer, glyph.mChar, 0);
 				++columnNo;
@@ -1411,6 +1408,110 @@ void TextEditor::Cut()
 	}
 }
 
+// Комментирует/раскомментирует выделенные строки (или текущую строку, если выделения нет).
+// Всё изменение записывается одной записью undo - Ctrl+Z отменяет операцию целиком.
+void TextEditor::ToggleComment()
+{
+	if (IsReadOnly() || mLines.empty())
+		return;
+
+	auto start = mState.mSelectionStart;
+	auto end = mState.mSelectionEnd;
+	if (start > end)
+		std::swap(start, end);
+
+	int firstLine = start.mLine;
+	int lastLine = end.mLine;
+	// выделение, заканчивающееся в начале строки, эту строку не задевает
+	if (lastLine > firstLine && end.mColumn == 0)
+		--lastLine;
+
+	if (firstLine < 0)
+		firstLine = 0;
+	if (firstLine >= (int)mLines.size())
+		return;
+	if (lastLine >= (int)mLines.size())
+		lastLine = (int)mLines.size() - 1;
+
+	// строка уже начинается с "//" (после отступов)?
+	auto isCommented = [this](int aLine)
+	{
+		auto& line = mLines[aLine];
+		int i = 0;
+		while (i < (int)line.size() && (line[i].mChar == ' ' || line[i].mChar == '\t'))
+			++i;
+		return i + 1 < (int)line.size() && line[i].mChar == '/' && line[i + 1].mChar == '/';
+	};
+
+	// если закомментированы все непустые строки диапазона - снимаем комментарий
+	bool allCommented = true;
+	for (int line = firstLine; line <= lastLine; ++line)
+	{
+		if (!mLines[line].empty() && !isCommented(line))
+		{
+			allCommented = false;
+			break;
+		}
+	}
+
+	// снимок текста затронутых полных строк
+	const Coordinates rangeStart(firstLine, 0);
+	const Coordinates rangeEnd(lastLine, (int)mLines[lastLine].size());
+	const std::string oldText = GetText(rangeStart, rangeEnd);
+
+	// строим новый текст
+	std::string newText;
+	size_t pos = 0;
+	while (true)
+	{
+		size_t eol = oldText.find('\n', pos);
+		std::string lineStr = oldText.substr(pos, eol == std::string::npos ? std::string::npos : eol - pos);
+		const size_t indent = lineStr.find_first_not_of(" \t");
+		if (allCommented)
+		{
+			if (indent != std::string::npos && lineStr.compare(indent, 2, "//") == 0)
+				lineStr.erase(indent, 2);
+		}
+		else if (indent != std::string::npos)
+		{
+			lineStr.insert(indent, "//");
+		}
+		newText += lineStr;
+		if (eol == std::string::npos)
+			break;
+		newText += '\n';
+		pos = eol + 1;
+	}
+
+	if (newText == oldText)
+		return;
+
+	// одна запись в undo
+	UndoRecord u;
+	u.mBefore = mState;
+	u.mRemoved = oldText;
+	u.mRemovedStart = rangeStart;
+	u.mRemovedEnd = rangeEnd;
+
+	DeleteRange(rangeStart, rangeEnd);
+	Coordinates where = rangeStart;
+	InsertTextAt(where, newText.c_str());
+
+	mState.mCursorPosition = where;
+	u.mAdded = newText;
+	u.mAddedStart = rangeStart;
+	u.mAddedEnd = where;
+	u.mAfter = mState;
+	AddUndo(u);
+
+	// оставить обработанные строки выделенными
+	mState.mSelectionStart = rangeStart;
+	mState.mSelectionEnd = where;
+	EnsureCursorVisible();
+	Colorize(firstLine, lastLine - firstLine + 2);
+	mTextChanged = true;
+}
+
 void TextEditor::Paste()
 {
 	auto clipText = ImGui::GetClipboardText();
@@ -1736,19 +1837,19 @@ float TextEditor::TextDistanceToLineStart(const Coordinates& aFrom) const
 	auto& line = mLines[aFrom.mLine];
 	float distance = 0.0f;
 	auto fontScale = ImGui::GetFontSize() / ImGui::GetFont()->FontSize;
-	float spaceSize = ImGui::CalcTextSize(" ").x + 1.0f * fontScale;
+	float spaceSize = ImGui::CalcTextSize(" ").x;
 	for (size_t it = 0u; it < line.size() && it < (unsigned)aFrom.mColumn; ++it)
 	{
 		if (line[it].mChar == '\t')
 		{
-			distance = (1.0f * fontScale + std::floor((1.0f + distance)) / (float(mTabSize) * spaceSize)) * (float(mTabSize) * spaceSize);
+			distance = (std::floor(distance / (float(mTabSize) * spaceSize)) + 1.0f) * (float(mTabSize) * spaceSize);
 		}
 		else
 		{
 			char tempCString[2];
  			tempCString[0] = line[it].mChar;
 			tempCString[1] = '\0';
-			distance += ImGui::CalcTextSize(tempCString).x + 1.0f * fontScale;
+			distance += ImGui::CalcTextSize(tempCString).x;
 		}
 	}
 

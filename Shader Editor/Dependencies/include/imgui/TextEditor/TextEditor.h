@@ -216,6 +216,7 @@ public:
 	void Cut();
 	void Paste();
 	void Delete();
+	void ToggleComment();
 
 	bool CanUndo() const;
 	bool CanRedo() const;
