@@ -133,6 +133,7 @@
     <ClCompile Include="src\OpenGLOOP\Shaders\FragmentShader.cpp" />
     <ClCompile Include="src\OpenGLOOP\Shaders\Shader.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\tinyfiledialogs.c" />
     <ClCompile Include="src\OpenGLOOP\IHaveId.cpp" />
     <ClCompile Include="src\OpenGLOOP\Shaders\VertexShader.cpp" />
     <ClCompile Include="src\OpenGLOOP\Textures\Texture2D.cpp" />

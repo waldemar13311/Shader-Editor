@@ -5,6 +5,12 @@ ElementBufferObject::ElementBufferObject()
 	glGenBuffers(1, &id_);
 }
 
+ElementBufferObject::~ElementBufferObject()
+{
+	if (id_ != 0)
+		glDeleteBuffers(1, &id_);
+}
+
 void ElementBufferObject::bind() const
 {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, id_);

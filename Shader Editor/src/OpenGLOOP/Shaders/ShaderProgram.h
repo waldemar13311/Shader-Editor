@@ -2,6 +2,7 @@
 
 #include "../IHaveId.h"
 #include <string>
+#include <unordered_map>
 
 #include "Shader.h"
 
@@ -9,6 +10,10 @@ class ShaderProgram : public IHaveId
 {
 public:
 	ShaderProgram();
+	~ShaderProgram();
+
+	ShaderProgram(const ShaderProgram&) = delete;
+	ShaderProgram& operator=(const ShaderProgram&) = delete;
 
 	void attachShader(const Shader& shader) const;
 	bool link() const;
@@ -32,6 +37,9 @@ public:
 	void setMat4(const std::string &name, const float *value) const;
 	void setMat3(const std::string &name, const float *value) const;
 
-
+private:
+	// glGetUniformLocation с кэшем: строковый поиск выполняется один раз на uniform
+	GLint getUniformLocation(const std::string &name) const;
+	mutable std::unordered_map<std::string, GLint> uniformLocations_;
 };
 

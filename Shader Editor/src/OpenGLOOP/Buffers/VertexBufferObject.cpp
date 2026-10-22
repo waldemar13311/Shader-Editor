@@ -1,10 +1,16 @@
 #include "VertexBufferObject.h"
 
-#include "GLEW/glew.h"
+#include <GL/glew.h>
 
 VertexBufferObject::VertexBufferObject()
 {
 	glGenBuffers(1, &id_);
+}
+
+VertexBufferObject::~VertexBufferObject()
+{
+	if (id_ != 0)
+		glDeleteBuffers(1, &id_);
 }
 
 void VertexBufferObject::bind() const

@@ -1,5 +1,8 @@
 #include "Shader.h"
+#include <GL/glew.h>
+
 #include <stdexcept>
+#include <vector>
 
 Shader::Shader(const ShaderType typeOfShader)
 	: code_(nullptr)
@@ -11,6 +14,12 @@ Shader::Shader(const ShaderType typeOfShader, const char* code)
 	: Shader(typeOfShader)
 {
 	setCode(code);
+}
+
+Shader::~Shader()
+{
+	if (id_ != 0)
+		glDeleteShader(id_);
 }
 
 void Shader::setCode(const char* code)
@@ -38,16 +47,16 @@ void Shader::deleteShader() const
 
 std::string Shader::getInfoLog()
 {
-	int logLen;
+	int logLen = 0;
 	glGetShaderiv(id_, GL_INFO_LOG_LENGTH, &logLen);
 
-	if(logLen > 0)
+	if (logLen > 0)
 	{
-		const auto infoLog = new char[logLen];
-		glGetShaderInfoLog(id_, logLen, nullptr, infoLog);
+		std::vector<char> infoLog(static_cast<size_t>(logLen));
+		glGetShaderInfoLog(id_, logLen, nullptr, infoLog.data());
 
-		return infoLog;
+		return std::string(infoLog.data());
 	}
 
-	return nullptr;
+	return {};
 }
