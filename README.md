@@ -60,3 +60,7 @@ cmake --build build
 ./build/ShaderEditor                # macOS, Linux (Make/Ninja)
 build/Debug/ShaderEditor.exe        # Windows (генератор Visual Studio)
 ```
+
+## License
+
+This project is licensed under the AGPL-3.0 License - see the [LICENSE](LICENSE) file for details.
