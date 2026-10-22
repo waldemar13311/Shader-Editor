@@ -62,27 +62,30 @@ void main()
     // и на маленькой, и на большой модели (STL часто в миллиметрах)
     vec3 p = vPosition / max(meshSize, 0.001);
 
-    // шум, медленно движущийся во времени — молнии «живут»
-    vec3 flow = vec3(time * 0.25, time * 0.15, -time * 0.2);
-    float n = fbm(p * 1.2 + flow);
+    // шум, медленно движущийся по поверхности — молнии «живут»
+    vec3 flow = vec3(time * 0.15, time * 0.1, -time * 0.12);
+    float n = fbm(p * 2.0 + flow);
 
-    // два слоя разрядов: редкие изолинии шума, пережатые в толстые линии
-    float bolt1 = pow(1.0 - abs(fract(n * 3.0) - 0.5) * 2.0, 7.0);
-    float bolt2 = pow(1.0 - abs(fract(n * 5.0 + 0.37) - 0.5) * 2.0, 12.0);
+    // молнии: изолинии шума, пережатые в линии средней толщины
+    float bolt1 = pow(1.0 - abs(fract(n * 6.0) - 0.5) * 2.0, 6.0);
+    float bolt2 = pow(1.0 - abs(fract(n * 9.0 + 0.37) - 0.5) * 2.0, 10.0);
 
-    // вспышки: редкие импульсы яркости, раскошенные по фазе шума
-    float flash = smoothstep(0.75, 1.0, sin(time * 1.5 + n * 6.0) * 0.5 + 0.5);
+    // общие пульсации яркости — эффект «живого электричества»
+    float pulse = 0.55 + 0.45 * sin(time * 2.2 + n * 5.0);
 
-    vec3 base = vec3(0.02, 0.06, 0.25);
-    vec3 boltColor = vec3(0.5, 0.95, 1.0);
-
-    vec3 color = base + boltColor * (bolt1 * 0.8 + bolt2 * 1.2) * (0.4 + flash);
-
-    // лёгкая подсветка силуэта, чтобы модель читалась на фоне
+    // объём: простое освещение от камеры, чтобы корпус не был плоским
     vec3 normal = normalize(vNormalView);
     vec3 viewDir = normalize(-vViewPos);
+    float diff = max(dot(normal, normalize(vec3(0.3, 0.4, 1.0))), 0.0);
+
+    vec3 base = vec3(0.07, 0.22, 0.75) * (0.45 + 0.55 * diff);
+    vec3 boltColor = vec3(0.55, 0.95, 1.0);
+
+    vec3 color = base + boltColor * (bolt1 * 1.1 + bolt2 * 1.4) * pulse;
+
+    // лёгкая подсветка силуэта
     float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
-    color += boltColor * fresnel * 0.25;
+    color += boltColor * fresnel * 0.35;
 
     FragColor = vec4(color, 1.0);
 }
