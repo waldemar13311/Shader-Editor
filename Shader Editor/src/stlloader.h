@@ -1,4 +1,5 @@
 #include <iostream>
+#include <stdexcept>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -96,7 +97,7 @@ void consume(std::istream & is, const std::string & expected)
     std::istringstream ss(line);
     ss >> label;
     if(label != expected)
-        throw;
+        throw std::runtime_error("Invalid STL file");
 }
 
 std::istringstream getlinestream(std::istream & is)
@@ -124,9 +125,9 @@ void parse_ascii_facet(std::istream & is, Facet & facet)
             }
         } while(label != "endloop");
         if(vi > 3)
-            throw; // only support triangles
+            throw std::runtime_error("Invalid STL file"); // only support triangles
     }
-    else { throw; }
+    else { throw std::runtime_error("Invalid STL file"); }
     consume(is, "endfacet");
 }
 
@@ -144,12 +145,12 @@ void parse_ascii_solid(std::istream & is, Mesh & mesh)
             Facet facet = {};
             ss >> param;
             if(param != "normal")
-                throw;
+                throw std::runtime_error("Invalid STL file");
             ss >> facet.normal;
             parse_ascii_facet(is, facet);
             mesh.facets.push_back(facet);
         }
-        else { throw; }
+        else { throw std::runtime_error("Invalid STL file"); }
     }
 }
 
@@ -164,7 +165,7 @@ void parse_ascii_stream(std::istream & is, Mesh & mesh)
             std::getline(ss, mesh.name);
             parse_ascii_solid(is, mesh);
         }
-        else { throw; }
+        else { throw std::runtime_error("Invalid STL file"); }
     }
 }
 
@@ -455,7 +456,7 @@ void getMaxCoordinatesInMesh(const Mesh & mesh, float &maxX, float &maxY, float 
 
 float *getPositionsOfPtr(Mesh &mesh)
 {
-	const auto countOfPositions = mesh.facets.size() * 3 * 3; // № точки с 3-мя координатами
+	const auto countOfPositions = mesh.facets.size() * 3 * 3; // В№ ГІГ®Г·ГЄГЁ Г± 3-Г¬Гї ГЄГ®Г®Г°Г¤ГЁГ­Г ГІГ Г¬ГЁ
 	const auto positions = new float[countOfPositions];
 
 	auto index = 0;

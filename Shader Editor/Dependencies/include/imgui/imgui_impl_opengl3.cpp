@@ -25,10 +25,11 @@
 #define CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <imgui\imgui.h>
-#include <imgui\imgui_impl_opengl3.h>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_opengl3.h>
+#include <cstdio>
 //#include <glad\glad.h>    // This example is using gl3w to access OpenGL functions. You may freely use any other OpenGL loader such as: glew, glad, glLoadGen, etc.
-#include <GLEW/glew.h>
+#include <GL/glew.h>
 
 // OpenGL Data
 static char         g_GlslVersion[32] = "#version 150";
@@ -45,8 +46,7 @@ bool    ImGui_ImplOpenGL3_Init(const char* glsl_version)
     if (glsl_version == NULL)
         glsl_version = "#version 150";
     IM_ASSERT((int)strlen(glsl_version) + 2 < IM_ARRAYSIZE(g_GlslVersion));
-    strcpy_s(g_GlslVersion, glsl_version);
-    strcat_s(g_GlslVersion, "\n");
+    snprintf(g_GlslVersion, IM_ARRAYSIZE(g_GlslVersion), "%s\n", glsl_version);
     return true;
 }
 

@@ -1,4 +1,4 @@
-﻿#include "FileReader.h"
+#include "FileReader.h"
 
 #include <fstream>
 
@@ -11,15 +11,11 @@ vector<string> FileReader::loadFromAsVector(const string &fileName)
 
 	ifstream fReader(fileName);
 
-	while (!fReader.eof())
+	string lineFromFile;
+	while (getline(fReader, lineFromFile))
 	{
-		string lineFromFile;
-		getline(fReader, lineFromFile);
-
 		result.push_back(lineFromFile);
 	}
-
-	fReader.close();
 
 	return result;
 }

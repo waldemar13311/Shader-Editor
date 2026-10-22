@@ -13,9 +13,9 @@
 #define CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <imgui\imgui.h>
+#include <imgui/imgui.h>
 #define IMGUI_DEFINE_MATH_OPERATORS
-#include <imgui\imgui_internal.h>
+#include <imgui/imgui_internal.h>
 
 #include <stdio.h>      // vsnprintf, sscanf, printf
 #if !defined(alloca)
