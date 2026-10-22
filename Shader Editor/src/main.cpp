@@ -551,6 +551,7 @@ void renderScene(GLFWwindow* window, AppContext& app)
 	app.shaders.program->setMat4("projection", glm::value_ptr(projection));
 	app.shaders.program->setMat3("normalMatrix", glm::value_ptr(normalMatrix));
 	app.shaders.program->setFloat("time", static_cast<float>(glfwGetTime()));
+	app.shaders.program->setFloat("meshSize", gView.maxLength);
 	app.shaders.program->setVec3("cameraPosition", gView.cameraX, gView.cameraY, gView.cameraZ);
 
 	// В буфере facets * 3 вершин (по 3 координаты на каждую) -
